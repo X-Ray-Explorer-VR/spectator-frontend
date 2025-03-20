@@ -21,12 +21,13 @@ export default function XRayExplorer() {
   const [bonesList, setBonesList] = useState<Bone[]>([]); // Lista de huesos recibidos del servidor
   const [fullName, setFullName] = useState(""); // Nombre completo de la parte del esqueleto
   const [fullText, setFullText] = useState(""); // Descripción completa de la parte del esqueleto
-  const [ws, setWs] = useState<WebSocket | null>(null); // Conexión WebSocket
+  const [, setWs] = useState<WebSocket | null>(null); // Conexión WebSocket
   const [statusMessage, setStatusMessage] = useState<string | null>(null); // Mensaje de estado (conexión, desconexión, etc.)
   const [isWaitingConnection, setIsWaitingConnection] = useState(true); // Estado para controlar el mensaje de espera
 
   // URL base de la API Flask
-  const API_BASE_URL = "http://localhost:5000";
+  const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:5000";
+  const WEBSOCKET_URL = process.env.WEBSOCKET_URL || "ws://localhost:8080";
 
   // Mapeo de respuestas del servidor WebSocket a partes del esqueleto
   const partMapping: { [key: string]: string } = {
@@ -49,7 +50,9 @@ export default function XRayExplorer() {
       // Obtener la parte del esqueleto
       const partesResponse = await fetch(`${API_BASE_URL}/partes`);
       const partes = await partesResponse.json();
-      const parte = partes.find((p: any) => p.nombre === partName);
+      const parte = partes.find(
+        (p: { nombre: string }) => p.nombre === partName
+      );
 
       if (parte) {
         // Obtener los huesos asociados
@@ -74,7 +77,7 @@ export default function XRayExplorer() {
 
   // Efecto para manejar la conexión WebSocket
   useEffect(() => {
-    const websocket = new WebSocket("ws://localhost:8080");
+    const websocket = new WebSocket(WEBSOCKET_URL);
 
     websocket.onopen = () => {
       console.log("Conexión WebSocket establecida");
