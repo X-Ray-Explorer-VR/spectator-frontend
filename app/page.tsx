@@ -12,12 +12,6 @@ interface Bone {
   parte_id: number;
 }
 
-interface PartData {
-  part: string;
-  description: string;
-  huesos: Bone[];
-}
-
 export default function XRayExplorer() {
   const [isConnected, setIsConnected] = useState(false);
   const [selectedPart, setSelectedPart] = useState<string | null>(null);
