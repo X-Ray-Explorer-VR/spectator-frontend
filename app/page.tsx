@@ -12,12 +12,6 @@ interface Bone {
   parte_id: number;
 }
 
-interface PartData {
-  part: string
-  description: string
-  huesos: Bone[]
-}
-
 export default function XRayExplorer() {
   const [isConnected, setIsConnected] = useState(false);
   const [selectedPart, setSelectedPart] = useState<string | null>(null);
@@ -57,13 +51,13 @@ export default function XRayExplorer() {
       const partesResponse = await fetch(`${API_BASE_URL}/partes`);
       const partes = await partesResponse.json();
       const parte = partes.find(
-        (p: { nombre: string }) => p.nombre === partName
+        (p: { nombre: string }) => p.nombre === partName,
       );
 
       if (parte) {
         // Obtener los huesos asociados
         const huesosResponse = await fetch(
-          `${API_BASE_URL}/partes/${parte.id}/huesos`
+          `${API_BASE_URL}/partes/${parte.id}/huesos`,
         );
         const huesos = await huesosResponse.json();
 
@@ -124,7 +118,7 @@ export default function XRayExplorer() {
         } else {
           console.error(
             "Parte del esqueleto no encontrada en el mapeo:",
-            partKey
+            partKey,
           );
         }
       } else if (message === "Oculus client: Connected") {
@@ -247,7 +241,7 @@ export default function XRayExplorer() {
                             </span>
                           ))}
                         </span>
-                      )
+                      ),
                     )}
                 </div>
               </div>
