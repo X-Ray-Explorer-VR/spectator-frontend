@@ -4,7 +4,7 @@ COPY package*.json ./
 
 RUN npm install
 
-FROM node:22-alpine As builder
+FROM node:22-alpine AS builder
 
 COPY . .
 COPY --from=deps /node_modules ./node_modules
