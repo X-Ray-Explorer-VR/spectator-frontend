@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eye } from "lucide-react";
@@ -21,74 +21,66 @@ export default function XRayExplorer() {
   const [bonesList, setBonesList] = useState<Bone[]>([]); // Lista de huesos recibidos del servidor
   const [fullName, setFullName] = useState(""); // Nombre completo de la parte del esqueleto
   const [fullText, setFullText] = useState(""); // Descripción completa de la parte del esqueleto
-  const [, setWs] = useState<WebSocket | null>(null); // Conexión WebSocket
   const [statusMessage, setStatusMessage] = useState<string | null>(null); // Mensaje de estado (conexión, desconexión, etc.)
-  const [isWaitingConnection, setIsWaitingConnection] = useState(true); // Estado para controlar el mensaje de espera
 
   // URL base de la API Flask
-  const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:5000";
-  const WEBSOCKET_URL = process.env.WEBSOCKET_URL || "ws://localhost:8080";
+  const API_BASE_URL = process.env.API_BASE_URL || "http://192.168.3.2:5000";
+  const WEBSOCKET_URL = process.env.WEBSOCKET_URL || "ws://192.168.3.2:8080";
 
   // Mapeo de respuestas del servidor WebSocket a partes del esqueleto
-  const partMapping: { [key: string]: string } = {
-    cranium: "Cráneo",
-    "rib-cage": "Caja torácica",
-    "spinal-cord": "Columna vertebral",
-    "left-top": "Extremidad superior izquierda",
-    "right-top": "Extremidad superior derecha",
-    "left-hand": "Mano izquierda",
-    "right-hand": "Mano derecha",
-    "left-bottom": "Extremidad inferior izquierda",
-    "right-bottom": "Extremidad inferior derecha",
-    "left-foot": "Pie izquierdo",
-    "right-foot": "Pie derecho",
-  };
+  const partMapping: { [key: string]: string } = useMemo(() => {
+    return {
+      cranium: "Cráneo",
+      "rib-cage": "Caja torácica",
+      "spinal-cord": "Columna vertebral",
+      "left-top": "Extremidad superior izquierda",
+      "right-top": "Extremidad superior derecha",
+      "left-hand": "Mano izquierda",
+      "right-hand": "Mano derecha",
+      "left-bottom": "Extremidad inferior izquierda",
+      "right-bottom": "Extremidad inferior derecha",
+      "left-foot": "Pie izquierdo",
+      "right-foot": "Pie derecho",
+    };
+  }, []);
 
   // Función para obtener los datos de la API Flask
-  const fetchPartData = async (partName: string) => {
-    try {
-      // Obtener la parte del esqueleto
-      const partesResponse = await fetch(`${API_BASE_URL}/partes`);
-      const partes = await partesResponse.json();
-      const parte = partes.find(
-        (p: { nombre: string }) => p.nombre === partName,
-      );
-
-      if (parte) {
-        // Obtener los huesos asociados
-        const huesosResponse = await fetch(
-          `${API_BASE_URL}/partes/${parte.id}/huesos`,
+  const fetchPartData = useCallback(
+    async (partName: string) => {
+      try {
+        // Obtener la parte del esqueleto
+        const partesResponse = await fetch(`${API_BASE_URL}/partes`);
+        const partes = await partesResponse.json();
+        const parte = partes.find(
+          (p: { nombre: string }) => p.nombre === partName,
         );
-        const huesos = await huesosResponse.json();
 
-        // Formatear la respuesta
-        const partData = {
-          part: parte.nombre,
-          description: parte.descripcion,
-          huesos: huesos,
-        };
-        return partData;
+        if (parte) {
+          // Obtener los huesos asociados
+          const huesosResponse = await fetch(
+            `${API_BASE_URL}/partes/${parte.id}/huesos`,
+          );
+          const huesos = await huesosResponse.json();
+
+          // Formatear la respuesta
+          const partData = {
+            part: parte.nombre,
+            description: parte.descripcion,
+            huesos: huesos,
+          };
+          return partData;
+        }
+      } catch (error) {
+        console.error("Error al obtener los datos de la API:", error);
       }
-    } catch (error) {
-      console.error("Error al obtener los datos de la API:", error);
-    }
-    return null;
-  };
 
-  // Efecto para manejar la conexión WebSocket
-  useEffect(() => {
-    const websocket = new WebSocket(WEBSOCKET_URL);
+      return null;
+    },
+    [API_BASE_URL],
+  );
 
-    websocket.onopen = () => {
-      console.log("Conexión WebSocket establecida");
-      websocket.send("Front-end client: Connected");
-      setIsConnected(true); // Mensaje de conexión exitosa
-    };
-
-    websocket.onmessage = async (event) => {
-      const message = event.data;
-      console.log("Mensaje recibido del servidor:", message);
-
+  const parseMessage = useCallback(
+    async (message: string) => {
       // Manejar diferentes tipos de mensajes
       if (message.startsWith("Oculus client: Set ")) {
         const partKey = message.replace("Oculus client: Set ", "").trim();
@@ -121,9 +113,6 @@ export default function XRayExplorer() {
             partKey,
           );
         }
-      } else if (message === "Oculus client: Connected") {
-        setStatusMessage("Conexión exitosa"); // Mensaje de conexión exitosa
-        setIsWaitingConnection(false); // Ocultar el mensaje de espera
       } else if (message === "Oculus client: Remove") {
         // Limpiar la información mostrada
         setSelectedPart(null);
@@ -134,30 +123,56 @@ export default function XRayExplorer() {
         setAnimatedText("");
         setIsAnimating(false);
         setStatusMessage(null); // Limpiar el mensaje de estado
-      } else if (message === "Oculus client: Disconnected") {
-        setStatusMessage("El Oculus se ha desconectado"); // Mensaje de desconexión
-        setIsConnected(false);
       }
+    },
+    [fetchPartData, partMapping, selectedPart],
+  );
+
+  const connectToWebSocket = useCallback(() => {
+    const ws = new WebSocket(WEBSOCKET_URL);
+
+    ws.onmessage = async (event) => {
+      const message = event.data;
+      console.log("Mensaje recibido del servidor:", message);
+      // Parse the message
+      parseMessage(message);
     };
 
-    websocket.onclose = () => {
-      console.log("Conexión WebSocket cerrada");
+    ws.onopen = () => {
+      console.log("Conexión WebSocket establecida");
+      ws.send("Front-end client: Connected");
+      // Mensaje de conexión exitosa
+      setIsConnected(true);
+    };
+
+    ws.onclose = () => {
+      console.log("Conexión WebSocket cerrada. Reintentando en 5 segundos...");
       setIsConnected(false);
-      //setStatusMessage("El Oculus se ha desconectado") // Mensaje de desconexión
+      // Retry connection
+      setTimeout(() => {
+        connectToWebSocket();
+      }, 5000);
     };
 
-    websocket.onerror = (error) => {
-      console.error("Error en la conexión WebSocket:", error);
-      setStatusMessage("Error de conexión con el Oculus"); // Mensaje de error
+    ws.onerror = (error) => {
+      console.warn("Error en la conexión WebSocket: ", error);
+      console.log("Reintentando en 5 segundos...");
+      // Retry connection
+      setTimeout(() => {
+        connectToWebSocket();
+      }, 5000);
     };
-
-    setWs(websocket);
 
     // Cerrar la conexión al desmontar el componente
     return () => {
-      websocket.close();
+      ws.close();
     };
-  }, []);
+  }, [WEBSOCKET_URL, parseMessage]);
+
+  // Connect at start
+  useEffect(() => {
+    connectToWebSocket();
+  }, [connectToWebSocket]);
 
   // Efecto para manejar la animación del texto
   useEffect(() => {
@@ -205,45 +220,6 @@ export default function XRayExplorer() {
             {statusMessage && (
               <div className="text-center mb-4">
                 <p className="text-blue-400 text-lg">{statusMessage}</p>
-              </div>
-            )}
-
-            {isWaitingConnection && (
-              <div className="text-center py-5">
-                <div className="wave-text text-2xl font-semibold text-blue-400">
-                  {"Esperando conexión..."
-                    .split(/(\s+)/) // Dividir en palabras y espacios
-                    .map((word, wordIndex) =>
-                      word === " " ? (
-                        <span
-                          key={wordIndex}
-                          style={{ display: "inline-block", width: "0.25em" }}
-                        >
-                          {" "}
-                        </span> // Mantener espacios
-                      ) : (
-                        <span
-                          key={wordIndex}
-                          style={{ display: "inline-block" }}
-                        >
-                          {word.split("").map((letter, letterIndex) => (
-                            <span
-                              key={letterIndex}
-                              style={{
-                                display: "inline-block",
-                                animation: `wave 1.5s infinite`,
-                                animationDelay: `${
-                                  (wordIndex + letterIndex) * 0.1
-                                }s`, // Retraso progresivo
-                              }}
-                            >
-                              {letter}
-                            </span>
-                          ))}
-                        </span>
-                      ),
-                    )}
-                </div>
               </div>
             )}
 
