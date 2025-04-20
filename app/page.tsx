@@ -152,7 +152,7 @@ export default function XRayExplorer() {
         });
       }
     },
-    [fetchPartData, partMapping, selectedPart, QuestionModal]
+    [fetchPartData, partMapping, selectedPart, question]
   );
 
   const connectToWebSocket = useCallback(() => {
