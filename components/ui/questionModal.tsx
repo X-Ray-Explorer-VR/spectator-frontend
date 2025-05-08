@@ -7,7 +7,7 @@ interface QuestionModalProps {
 
 const QuestionModal: FC<QuestionModalProps> = ({ question, response }) => {
   return (
-    <div className="absolute bottom-10 left-10">
+    <div className="absolute bottom-14 left-14 max-w-60">
       <div
         className={`text-white p-4 bg-gray-800 border rounded border-gray-700 min-w-[30vw] shadow-xl shadow-black/70 transition-opacity ${
           question ? "opacity-100" : "opacity-0"
